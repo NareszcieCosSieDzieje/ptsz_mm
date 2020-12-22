@@ -6,6 +6,21 @@ print("[AUTOSCORE]")
 
 PATH_PREFIX = "zadanie2"
 
+EXCEL = [
+    132203,
+    132325,
+    136558,
+    136674,
+    136698,
+    136704,
+    136748,
+    136751,
+    136760,
+    136800,
+    136809,
+    142192,
+]
+
 
 def file_read_(path):
     with open(path, 'r') as file:
@@ -15,7 +30,7 @@ def file_read_(path):
 
 def get_solution(path):
     vec = open(path, 'r').read().split("\n")
-    score, sol = int(vec[0]), vec[1:6]
+    score, sol = float(vec[0]), vec[1:6]
     J = [[], [], [], [], []]
     for i, sol_i in enumerate(sol):
         J[i] = list(map(int, sol_i.strip().split(" ")))
@@ -55,15 +70,29 @@ def loss(B, P, R, J):
                 t = r
             t += p / b
             F += t - r
-    F = np.round(F / N)
-    return int(F)
+    F = np.round(F / N, 1)
+    return F
+
+
+def save_for_person(arr_score, person):
+    path = f"score_{person}.txt"
+    print(f"saving `{path}`")
+    blob_arr = []
+    for ref_person in EXCEL:
+        for i in range(50, 500+50, 50):
+            instance_idx = f"{ref_person}_{i}"
+            blob_arr.append(arr_score[instance_idx])
+    with open(path, "w") as file:
+        file.write("\n".join(map(str, blob_arr)))
 
 
 status = 0
 print(f"[run] path = {PATH_PREFIX}/out/*/")
 status_dict = {}
 for path_dir in glob(f"{PATH_PREFIX}/out/*/"):
+    status_sum = 0
     status_local = 0
+    dict_score = {}
     person = path_dir.split("/")[-2]
     if not person.isdigit():
         continue
@@ -78,9 +107,11 @@ for path_dir in glob(f"{PATH_PREFIX}/out/*/"):
             B, P, R = get_instance(instance_idx)
             score, J = get_solution(path)
             score_verify = loss(B, P, R, J)
+            status_sum += score_verify
+            dict_score[instance_idx] = score_verify
             print(
                 f"score_out={score:10} score_verify={score_verify:10}", end=" ")
-            if abs(score - score_verify) <= 1:
+            if abs(score - score_verify) <= 1.5:
                 print("\033[92mOK\033[0m")
             else:
                 print("\033[91mNO\033[0m")
@@ -93,12 +124,19 @@ for path_dir in glob(f"{PATH_PREFIX}/out/*/"):
             print(f"\t[wrong format] {text} ", end="")
             print("\033[91mNO\033[0m")
             status = status_local = 1
-    status_dict[person] = status_local
+    save_for_person(dict_score, person)
+    if status_local == 1:
+        status_dict[person] = 0
+    else:
+        status_dict[person] = round(status_sum, 1)
 print("====== RESULT ======")
-for person in status_dict:
+for person in EXCEL:
     print(f"[{person}] ", end="")
-    if status_dict[person] == 0:
-        print("\033[92mOK\033[0m")
+    if str(person) not in status_dict.keys():
+        print("no out files")
+        continue
+    if status_dict[str(person)] > 0:
+        print(f"\033[92mOK\033[0m sum={status_dict[str(person)]}")
     else:
         print("\033[91mNO\033[0m")
 sys.exit(status)
