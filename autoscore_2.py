@@ -4,7 +4,7 @@ import numpy as np
 import sys
 print("[AUTOSCORE]")
 
-PATH_PREFIX = "zadanie3"
+PATH_PREFIX = "zadanie2"
 
 EXCEL = [
     132203,
@@ -22,11 +22,6 @@ EXCEL = [
 ]
 
 
-class Job:
-    def __init__(self, p: list, d, w):
-        self.p, self.d, self.w = p, d, w
-
-
 def file_read_(path):
     with open(path, 'r') as file:
         data = file.read()
@@ -35,41 +30,48 @@ def file_read_(path):
 
 def get_solution(path):
     vec = open(path, 'r').read().split("\n")
-    score, sol = float(vec[0]), vec[1]
-    order = list(map(int, sol.strip().split(" ")))
-    return score, order
+    score, sol = float(vec[0]), vec[1:6]
+    J = [[], [], [], [], []]
+    for i, sol_i in enumerate(sol):
+        J[i] = list(map(int, sol_i.strip().split(" ")))
+    return score, J
 
 
 def get_instance(instance_idx):
     owner_idx = instance_idx.split("_")[0]
     path = f"{PATH_PREFIX}/in/{owner_idx}/{instance_idx}.txt"
     data = file_read_(path).split("\n")
-    N = int(data[0])
-    jobs, P, D, W = [], [], [], []
-    for job in data[1:]:
-        if job == "":
+    N, P, R = int(data[0]), [], []
+    B = list(map(float, data[1].strip().split(" ")))
+    for job in data[2:]:
+        if job == '':
             continue
-        p1, p2, p3, d, w = list(map(int, job.split(" ")))
-        P.append([p1, p2, p3])
-        D.append(d)
-        W.append(w)
-    jobs = [Job(P[i], D[i], W[i]) for i in range(N)]
-    return jobs, P, D, W
+        p, r = list(map(int, job.split(" ")))
+        P.append(p)
+        R.append(r)
+    return B, P, R
 
 
-def loss(order, jobs):
-    loss = 0
-    m = len(jobs[0].p)
-    t = [0 for _ in range(m)]
-    for idx in order:
-        job = jobs[idx-1]
-        prev_time = 0
-        for i in range(m):
-            t[i] = max(t[i], prev_time)+job.p[i]
-            prev_time = t[i]
-        if job.d < prev_time:
-            loss += job.w*(prev_time-job.d)
-    return round(loss/sum([job.w for job in jobs]), 1)
+def loss(B, P, R, J):
+    N, M = len(P), len(B)
+    flat = np.hstack(J)
+    assert M == len(J)
+    # print(flat, len(flat), N)
+    assert N == len(flat)
+    assert set(flat) == set(range(1, N+1))
+    F = 0
+    for m in range(M):
+        b = B[m]
+        t = 0
+        for j in J[m]:
+            j -= 1  # FIXME: bo indeksy od `1..`
+            p, r = P[j], R[j]
+            if t < r:
+                t = r
+            t += p / b
+            F += t - r
+    F = np.round(F / N, 1)
+    return F
 
 
 def save_for_person(arr_score, person):
@@ -79,10 +81,7 @@ def save_for_person(arr_score, person):
     for ref_person in EXCEL:
         for i in range(50, 500+50, 50):
             instance_idx = f"{ref_person}_{i}"
-            try:
-                blob_arr.append(arr_score[instance_idx])
-            except:
-                blob_arr.append("")
+            blob_arr.append(arr_score[instance_idx])
     with open(path, "w") as file:
         file.write("\n".join(map(str, blob_arr)))
 
@@ -105,9 +104,9 @@ for path_dir in glob(f"{PATH_PREFIX}/out/*/"):
             instance_idx = instance_idx.split("/")[-1]
         print(f"\t---> {instance_idx:12} | ", end="")
         try:
-            jobs, P, D, W = get_instance(instance_idx)
-            score, order = get_solution(path)
-            score_verify = loss(order, jobs)
+            B, P, R = get_instance(instance_idx)
+            score, J = get_solution(path)
+            score_verify = loss(B, P, R, J)
             status_sum += score_verify
             dict_score[instance_idx] = score_verify
             print(
